@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld('buyerAPI', {
   setLaunch: (enabled) => ipcRenderer.invoke('settings:launch', enabled),
   saveBackup: () => ipcRenderer.invoke('backup:save'),
   restoreBackup: () => ipcRenderer.invoke('backup:restore'),
-  exportPdf: (html) => ipcRenderer.invoke('report:pdf', html)
+  exportPdf: (html) => ipcRenderer.invoke('report:pdf', html),
+  fetchRatesXml: () => ipcRenderer.invoke('rates:fetchXml')
 });

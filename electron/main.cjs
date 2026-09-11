@@ -71,6 +71,11 @@ app.whenReady().then(() => {
   ipcMain.handle('backup:restore', async () => { const { filePaths } = await require('electron').dialog.showOpenDialog({ filters: [{ name: 'JSON', extensions: ['json'] }], properties: ['openFile'] }); if (filePaths?.[0]) { let restored; try { restored = JSON.parse(fs.readFileSync(filePaths[0], 'utf8')); } catch { throw new Error('Не удалось прочитать файл резервной копии'); } if (!isValidStore(restored)) throw new Error('Некорректный файл резервной копии'); if (fs.existsSync(storePath)) fs.copyFileSync(storePath, `${storePath}.before-restore.bak`); writeStore(normalizeStore(restored)); return normalizeStore(restored); } return null; });
   ipcMain.handle('report:pdf', async (_event, html) => { const report = new BrowserWindow({ show: false }); await report.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`); const pdf = await report.webContents.printToPDF({ printBackground: true }); const { filePath } = await require('electron').dialog.showSaveDialog({ defaultPath: 'buyer-report.pdf', filters: [{ name: 'PDF', extensions: ['pdf'] }] }); if (filePath) fs.writeFileSync(filePath, pdf); report.close(); return filePath || null; });
   ipcMain.handle('report:open', (_event, url) => shell.openExternal(url));
+  ipcMain.handle('rates:fetchXml', async () => {
+    const response = await fetch('https://nationalbank.kz/rss/rates_all.xml');
+    if (!response.ok) throw new Error('Не удалось получить курс НБРК');
+    return response.text();
+  });
   createWindow(); createTray();
 });
 app.on('window-all-closed', (event) => event.preventDefault());

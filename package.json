@@ -1,0 +1,53 @@
+{
+  "name": "buyer-finance",
+  "version": "1.0.0",
+  "description": "Локальный учет финансов байера",
+  "main": "electron/main.cjs",
+  "author": "Buyer Finance",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "build": "vite build",
+    "start": "electron .",
+    "dist": "npm run build && electron-builder",
+    "dist:portable": "npm run build && electron-builder --win portable"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "react": "latest",
+    "react-dom": "latest",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "electron": "latest",
+    "electron-builder": "latest",
+    "vite": "latest",
+    "wait-on": "latest"
+  },
+  "build": {
+    "appId": "local.buyer.finance",
+    "productName": "Учёт байера",
+    "publish": null,
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false
+    }
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Учёт байера</string>
+    <string name="title_activity_main">Учёт байера</string>
+    <string name="package_name">local.buyer.finance</string>
+    <string name="custom_url_scheme">local.buyer.finance</string>
+</resources>

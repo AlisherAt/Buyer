@@ -1,0 +1,11 @@
+{
+  "name": "Учёт байера",
+  "short_name": "Байер",
+  "description": "Локальный учёт закупок, продаж и прибыли",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f2f5f5",
+  "theme_color": "#1e8777",
+  "lang": "ru",
+  "icons": []
+}

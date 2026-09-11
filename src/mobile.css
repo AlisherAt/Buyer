@@ -1,3 +1,7 @@
+body > iframe {
+  display: none !important;
+}
+
 @media (max-width: 900px) and (pointer: coarse) {
   .mobile-menu-button {
     display: grid;
@@ -38,10 +42,12 @@
     transform: translateX(-105%);
     transition: transform .24s ease;
     box-shadow: 12px 0 34px rgba(0, 0, 0, .24);
+    visibility: hidden;
   }
 
   .menu-open .sidebar {
     transform: translateX(0);
+    visibility: visible;
   }
 
   .mobile-menu-backdrop {
@@ -62,6 +68,7 @@
 
   .sidebar .brand {
     display: flex;
+    margin-right: 44px;
   }
 
   .sidebar nav {
@@ -174,6 +181,13 @@
   .calendar-day {
     min-height: 66px;
     padding: 7px 6px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--panel) 94%, var(--soft));
+  }
+
+  .calendar-day.has-earnings {
+    background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    border-width: 2px;
   }
 
   .calendar-day strong {
@@ -186,6 +200,19 @@
 
   .calendar-total strong {
     font-size: 19px;
+  }
+
+  .calendar-stats {
+    gap: 8px;
+  }
+
+  .calendar-stats span {
+    min-height: 48px;
+    font-size: 11px;
+  }
+
+  .calendar-stats strong {
+    font-size: 14px;
   }
 }
 

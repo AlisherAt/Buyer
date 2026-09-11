@@ -1,0 +1,16 @@
+node_modules/
+dist/
+
+# Local Android and Capacitor files
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/local.properties
+
+# Local Electron/build artifacts
+release/
+*.log
+.env
+.env.*
+!.env.example

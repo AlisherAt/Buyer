@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as XLSX from 'xlsx';
 import { cloudEnabled, supabase } from './supabase';
+import AdminSubscriptions from './AdminSubscriptions';
 import './styles.css';
 import './mobile.css';
 import './auth.css';
@@ -32,6 +33,20 @@ const cloudAPI = {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('Сессия истекла');
     const { error } = await supabase.from('user_stores').upsert({ user_id: userData.user.id, data, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  },
+  getProfile: async () => {
+    const { data, error } = await supabase.from('profiles').select('user_id,email,role').maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  findProfiles: async email => {
+    const { data, error } = await supabase.from('profiles').select('user_id,email').ilike('email', `%${email}%`).limit(10);
+    if (error) throw error;
+    return data || [];
+  },
+  saveSubscription: async subscription => {
+    const { error } = await supabase.from('subscriptions').upsert({ ...subscription, updated_at: new Date().toISOString() });
     if (error) throw error;
   },
   setLaunch: async () => false,
@@ -67,6 +82,7 @@ function AuthScreen({ loading = false }) {
 
 function App() {
   const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(cloudEnabled);
   const [store, setStore] = useState(emptyStore);
   const [page, setPage] = useState('overview');
@@ -85,6 +101,10 @@ function App() {
   useEffect(() => {
     if (cloudEnabled && !session) return;
     storageAPI(session).getStore().then(data => { const next = { ...emptyStore, ...data, settings: { ...emptyStore.settings, ...data.settings, exchangeRates: { ...emptyStore.settings.exchangeRates, ...data.settings?.exchangeRates } } }; ['purchases', 'sales', 'expenses', 'taxPayments', 'refunds'].forEach(key => { if (!Array.isArray(next[key])) next[key] = []; }); setStore(next); setTheme(next.settings.theme); }).catch(() => notify('Не удалось загрузить облачные данные'));
+  }, [session]);
+  useEffect(() => {
+    if (!session || !cloudEnabled) return;
+    cloudAPI.getProfile().then(setProfile).catch(() => {});
   }, [session]);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   const persist = (next) => { setStore(next); return storageAPI(session).saveStore(next).catch(() => { notify('Не удалось сохранить данные'); throw new Error('save failed'); }); };
@@ -136,7 +156,8 @@ function App() {
       {page === 'warehouse' && <Warehouse store={store} />}
       {page === 'taxes' && <Taxes store={store} metrics={metrics} persist={persist} />}
       {page === 'reports' && <Reports metrics={metrics} sales={sales} store={store} csvExport={csvExport} pdfExport={pdfExport} />}
-      {page === 'settings' && <Settings store={store} updateSettings={updateSettings} notify={notify} restoreBackup={restoreBackup} />}
+      {page === 'settings' && <Settings store={store} updateSettings={updateSettings} notify={notify} restoreBackup={restoreBackup} profile={profile} />}
+      {page === 'settings' && profile?.role === 'admin' && <AdminSubscriptions notify={notify} />}
     </main>
     {(modal === 'purchase' || modal?.type === 'purchase') && <PurchaseModal value={modal?.value} onSave={modal?.value ? updatePurchase : addPurchase} onClose={() => setModal(null)} settings={store.settings} />}
     {(modal === 'sale' || modal?.type === 'sale') && <SaleModal value={modal?.value} onSave={modal?.value ? updateSale : addSale} onClose={() => setModal(null)} purchases={store.purchases.filter(p => p.status !== 'Продано' || p.id === modal?.value?.purchaseId)} currency={store.settings.currency} />}

@@ -125,7 +125,11 @@ function App() {
   }, [session]);
   useEffect(() => {
     if (!session || !cloudEnabled) return;
-    Promise.all([cloudAPI.getProfile(), cloudAPI.getSubscription()]).then(([nextProfile, nextSubscription]) => { setProfile(nextProfile); setSubscription(nextSubscription); }).catch(() => {}).finally(() => setAccountLoading(false));
+    Promise.allSettled([cloudAPI.getProfile(), cloudAPI.getSubscription()]).then(([profileResult, subscriptionResult]) => {
+      const fallbackProfile = { user_id: session.user.id, email: session.user.email, role: 'user', created_at: session.user.created_at };
+      setProfile(profileResult.status === 'fulfilled' ? profileResult.value : fallbackProfile);
+      setSubscription(subscriptionResult.status === 'fulfilled' ? subscriptionResult.value : null);
+    }).finally(() => setAccountLoading(false));
   }, [session]);
   useEffect(() => {
     if (!profile?.created_at) return undefined;
@@ -166,7 +170,7 @@ function App() {
   if (authLoading) return <AuthScreen loading />;
   if (cloudEnabled && !session) return <AuthScreen />;
   if (cloudEnabled && accountLoading) return <AuthScreen loading />;
-  const trialEnd = profile?.created_at ? new Date(profile.created_at).getTime() + trialDurationMs : 0;
+  const trialEnd = (profile?.created_at || session?.user?.created_at) ? new Date(profile?.created_at || session.user.created_at).getTime() + trialDurationMs : 0;
   const inTrial = profile?.role !== 'admin' && trialEnd > Date.now();
   const hasAccess = profile?.role === 'admin' || inTrial || (subscription?.status === 'active' && (subscription.is_permanent || (subscription.current_period_end && new Date(subscription.current_period_end) > new Date())));
   if (cloudEnabled && !hasAccess) return <SubscriptionScreen subscription={subscription} onSignOut={() => supabase.auth.signOut()} />;

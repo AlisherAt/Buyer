@@ -15,6 +15,7 @@ const countries = ['США', 'Япония', 'Корея', 'Европа', 'Др
 const purchaseStatuses = ['Заказано', 'В пути', 'На складе', 'Продано'];
 const paymentStatuses = ['Полная предоплата', 'Частичная', 'Постоплата', 'Долг'];
 const expenseCategories = ['Реклама', 'Упаковка', 'Курьерка', 'Комиссия платёжной системы', 'Прочее'];
+const trialDurationMs = 24 * 60 * 60 * 1000;
 const browserAPI = {
   getStore: async () => { try { return JSON.parse(localStorage.getItem('buyer-finance-store') || 'null') || emptyStore; } catch { return emptyStore; } },
   saveStore: async data => localStorage.setItem('buyer-finance-store', JSON.stringify(data)),
@@ -94,7 +95,7 @@ function AuthScreen({ loading = false }) {
 
 function SubscriptionScreen({ subscription, onSignOut }) {
   const expired = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString('ru-RU') : null;
-  return <div className="auth-shell"><div className="auth-card subscription-card"><div className="auth-brand"><div className="brand-mark">BF</div><div><h1>Учёт байера</h1><p>Доступ к облачному учёту</p></div></div><h2>Нужна активная подписка</h2><p>{expired ? `Доступ закончился ${expired}.` : 'Для работы с приложением активируйте подписку.'}</p><div className="subscription-offer"><strong>Доступ к приложению</strong><span>1000 ₸ / месяц</span><small>Оплата Kaspi подключается отдельно. Пока обратитесь к администратору для активации.</small></div><button className="secondary full" onClick={onSignOut}>Выйти</button></div></div>;
+  return <div className="auth-shell"><div className="auth-card subscription-card"><div className="auth-brand"><div className="brand-mark">BF</div><div><h1>Учёт байера</h1><p>Доступ к облачному учёту</p></div></div><h2>Нужна активная подписка</h2><p>{expired ? `Доступ закончился ${expired}.` : 'Ваш бесплатный пробный период завершён.'}</p><div className="subscription-offer"><strong>Доступ к приложению</strong><span>1000 ₸ / месяц</span><small>Активируйте подписку, чтобы продолжить пользоваться учётом. Если оплата ещё не подключена, обратитесь к администратору.</small></div><button className="secondary full" onClick={onSignOut}>Выйти</button></div></div>;
 }
 
 function App() {
@@ -165,7 +166,7 @@ function App() {
   if (authLoading) return <AuthScreen loading />;
   if (cloudEnabled && !session) return <AuthScreen />;
   if (cloudEnabled && accountLoading) return <AuthScreen loading />;
-  const trialEnd = profile?.created_at ? new Date(profile.created_at).getTime() + 60 * 1000 : 0;
+  const trialEnd = profile?.created_at ? new Date(profile.created_at).getTime() + trialDurationMs : 0;
   const inTrial = profile?.role !== 'admin' && trialEnd > Date.now();
   const hasAccess = profile?.role === 'admin' || inTrial || (subscription?.status === 'active' && (subscription.is_permanent || (subscription.current_period_end && new Date(subscription.current_period_end) > new Date())));
   if (cloudEnabled && !hasAccess) return <SubscriptionScreen subscription={subscription} onSignOut={() => supabase.auth.signOut()} />;

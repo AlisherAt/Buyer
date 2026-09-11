@@ -133,6 +133,16 @@ function App() {
     }).finally(() => setAccountLoading(false));
   }, [session]);
   useEffect(() => {
+    if (!session || !cloudEnabled) return undefined;
+    let active = true;
+    const refreshSubscription = async () => {
+      const nextSubscription = await cloudAPI.getSubscription().catch(() => undefined);
+      if (active && nextSubscription !== undefined) setSubscription(nextSubscription);
+    };
+    const timer = setInterval(refreshSubscription, 5000);
+    return () => { active = false; clearInterval(timer); };
+  }, [session]);
+  useEffect(() => {
     if (!profile?.created_at) return undefined;
     const timer = setInterval(() => setTrialNow(Date.now()), 1000);
     return () => clearInterval(timer);

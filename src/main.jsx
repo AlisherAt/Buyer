@@ -42,6 +42,11 @@ const cloudAPI = {
     if (error) throw error;
     return data;
   },
+  getSubscription: async () => {
+    const { data, error } = await supabase.from('subscriptions').select('status,plan,current_period_end,is_permanent,amount,currency,updated_at').maybeSingle();
+    if (error) throw error;
+    return data;
+  },
   findProfiles: async email => {
     const { data, error } = await supabase.from('profiles').select('user_id,email').ilike('email', `%${email}%`).limit(10);
     if (error) throw error;
@@ -82,9 +87,16 @@ function AuthScreen({ loading = false }) {
   return <div className="auth-shell"><div className="auth-card"><div className="auth-brand"><div className="brand-mark">BF</div><div><h1>Учёт байера</h1><p>Облачный доступ с любого устройства</p></div></div><h2>{register ? 'Создать аккаунт' : 'Войти в аккаунт'}</h2>{sent && <div className="auth-error" style={{ background: '#dff3e8', color: '#1e705f' }}>Проверьте почту для подтверждения аккаунта.</div>}{error && <div className="auth-error">{error}</div>}<form className="auth-form" onSubmit={submit}><label>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} required autoComplete="email" /></label><label>Пароль<input type="password" value={password} onChange={event => setPassword(event.target.value)} minLength="6" required autoComplete={register ? 'new-password' : 'current-password'} /></label><button className="primary">{register ? 'Зарегистрироваться' : 'Войти'}</button></form><button className="auth-switch" onClick={() => { setRegister(!register); setError(''); setSent(false); }}>{register ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}</button></div></div>;
 }
 
+function SubscriptionScreen({ subscription, onSignOut }) {
+  const expired = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString('ru-RU') : null;
+  return <div className="auth-shell"><div className="auth-card subscription-card"><div className="auth-brand"><div className="brand-mark">BF</div><div><h1>Учёт байера</h1><p>Доступ к облачному учёту</p></div></div><h2>Нужна активная подписка</h2><p>{expired ? `Доступ закончился ${expired}.` : 'Для работы с приложением активируйте подписку.'}</p><div className="subscription-offer"><strong>Доступ к приложению</strong><span>1000 ₸ / месяц</span><small>Оплата Kaspi подключается отдельно. Пока обратитесь к администратору для активации.</small></div><button className="secondary full" onClick={onSignOut}>Выйти</button></div></div>;
+}
+
 function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [subscription, setSubscription] = useState(null);
+  const [accountLoading, setAccountLoading] = useState(cloudEnabled);
   const [authLoading, setAuthLoading] = useState(cloudEnabled);
   const [store, setStore] = useState(emptyStore);
   const [page, setPage] = useState('overview');
@@ -106,7 +118,7 @@ function App() {
   }, [session]);
   useEffect(() => {
     if (!session || !cloudEnabled) return;
-    cloudAPI.getProfile().then(setProfile).catch(() => {});
+    Promise.all([cloudAPI.getProfile(), cloudAPI.getSubscription()]).then(([nextProfile, nextSubscription]) => { setProfile(nextProfile); setSubscription(nextSubscription); }).catch(() => {}).finally(() => setAccountLoading(false));
   }, [session]);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   const persist = (next) => { setStore(next); return storageAPI(session).saveStore(next).catch(() => { notify('Не удалось сохранить данные'); throw new Error('save failed'); }); };
@@ -141,6 +153,9 @@ function App() {
 
   if (authLoading) return <AuthScreen loading />;
   if (cloudEnabled && !session) return <AuthScreen />;
+  if (cloudEnabled && accountLoading) return <AuthScreen loading />;
+  const hasAccess = profile?.role === 'admin' || (subscription?.status === 'active' && (subscription.is_permanent || (subscription.current_period_end && new Date(subscription.current_period_end) > new Date())));
+  if (cloudEnabled && !hasAccess) return <SubscriptionScreen subscription={subscription} onSignOut={() => supabase.auth.signOut()} />;
   return <div className={`app-shell ${menuOpen ? 'menu-open' : ''}`}>
     <div className="mobile-menu-backdrop" onClick={() => setMenuOpen(false)}></div>
     <aside className="sidebar">

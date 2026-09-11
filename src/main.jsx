@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as XLSX from 'xlsx';
+import { cloudEnabled, supabase } from './supabase';
 import './styles.css';
 import './mobile.css';
+import './auth.css';
 
 const emptyStore = { settings: { currency: 'RUB', taxRate: 4, autoLaunch: true, showWarehouse: true, theme: 'light', categories: ['Без категории'], exchangeRates: { KZT: '', USD: '' } }, purchases: [], sales: [], expenses: [], taxPayments: [], refunds: [] };
 const money = (value, currency = 'RUB') => new Intl.NumberFormat('ru-RU', { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -20,7 +22,24 @@ const browserAPI = {
   restoreBackup: async () => null,
   exportPdf: async () => null
 };
-const storageAPI = () => window.buyerAPI || browserAPI;
+const cloudAPI = {
+  getStore: async () => {
+    const { data, error } = await supabase.from('user_stores').select('data').maybeSingle();
+    if (error) throw error;
+    return data?.data || emptyStore;
+  },
+  saveStore: async data => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error('Сессия истекла');
+    const { error } = await supabase.from('user_stores').upsert({ user_id: userData.user.id, data, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  },
+  setLaunch: async () => false,
+  saveBackup: browserAPI.saveBackup,
+  restoreBackup: browserAPI.restoreBackup,
+  exportPdf: browserAPI.exportPdf
+};
+const storageAPI = session => cloudEnabled && session ? cloudAPI : (window.buyerAPI || browserAPI);
 if (!window.buyerAPI) window.buyerAPI = browserAPI;
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 
@@ -28,7 +47,27 @@ function calcPurchase(form, mainCurrency = 'RUB', exchangeRates = {}) { const pr
 function blankPurchase() { return { date: date(), country: 'США', platform: '', title: '', category: 'Без категории', link: '', price: '', currency: 'USD', rate: '', internalDelivery: '', internalDeliveryRate: '', internationalDelivery: '', internationalDeliveryRate: '', customs: '', agentFee: '', status: 'Заказано' }; }
 function blankSale() { return { date: date(), purchaseId: '', client: '', price: '', paymentStatus: 'Полная предоплата', paid: '' }; }
 
+function AuthScreen({ loading = false }) {
+  const [register, setRegister] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
+  const submit = async event => {
+    event.preventDefault();
+    setError('');
+    setSent(false);
+    const result = register ? await supabase.auth.signUp({ email, password }) : await supabase.auth.signInWithPassword({ email, password });
+    if (result.error) setError(result.error.message.includes('Invalid login credentials') ? 'Неверный email или пароль' : result.error.message);
+    else if (register && !result.data.session) setSent(true);
+  };
+  if (loading) return <div className="auth-shell"><div className="auth-card auth-loading"><div className="brand-mark">BF</div><p>Проверяем авторизацию...</p></div></div>;
+  return <div className="auth-shell"><div className="auth-card"><div className="auth-brand"><div className="brand-mark">BF</div><div><h1>Учёт байера</h1><p>Облачный доступ с любого устройства</p></div></div><h2>{register ? 'Создать аккаунт' : 'Войти в аккаунт'}</h2>{sent && <div className="auth-error" style={{ background: '#dff3e8', color: '#1e705f' }}>Проверьте почту для подтверждения аккаунта.</div>}{error && <div className="auth-error">{error}</div>}<form className="auth-form" onSubmit={submit}><label>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} required autoComplete="email" /></label><label>Пароль<input type="password" value={password} onChange={event => setPassword(event.target.value)} minLength="6" required autoComplete={register ? 'new-password' : 'current-password'} /></label><button className="primary">{register ? 'Зарегистрироваться' : 'Войти'}</button></form><button className="auth-switch" onClick={() => { setRegister(!register); setError(''); setSent(false); }}>{register ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}</button></div></div>;
+}
+
 function App() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(cloudEnabled);
   const [store, setStore] = useState(emptyStore);
   const [page, setPage] = useState('overview');
   const [modal, setModal] = useState(null);
@@ -37,9 +76,18 @@ function App() {
   const [theme, setTheme] = useState('light');
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
-    useEffect(() => { storageAPI().getStore().then(data => { const next = { ...emptyStore, ...data, settings: { ...emptyStore.settings, ...data.settings, exchangeRates: { ...emptyStore.settings.exchangeRates, ...data.settings?.exchangeRates } } }; ['purchases', 'sales', 'expenses', 'taxPayments', 'refunds'].forEach(key => { if (!Array.isArray(next[key])) next[key] = []; }); setStore(next); setTheme(next.settings.theme); }); }, []);
+  useEffect(() => {
+    if (!cloudEnabled) return;
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthLoading(false); });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
+    return () => listener.subscription.unsubscribe();
+  }, []);
+  useEffect(() => {
+    if (cloudEnabled && !session) return;
+    storageAPI(session).getStore().then(data => { const next = { ...emptyStore, ...data, settings: { ...emptyStore.settings, ...data.settings, exchangeRates: { ...emptyStore.settings.exchangeRates, ...data.settings?.exchangeRates } } }; ['purchases', 'sales', 'expenses', 'taxPayments', 'refunds'].forEach(key => { if (!Array.isArray(next[key])) next[key] = []; }); setStore(next); setTheme(next.settings.theme); }).catch(() => notify('Не удалось загрузить облачные данные'));
+  }, [session]);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
-  const persist = (next) => { setStore(next); return storageAPI().saveStore(next).catch(() => { notify('Не удалось сохранить данные'); throw new Error('save failed'); }); };
+  const persist = (next) => { setStore(next); return storageAPI(session).saveStore(next).catch(() => { notify('Не удалось сохранить данные'); throw new Error('save failed'); }); };
   const notify = (text) => { setToast(text); setTimeout(() => setToast(''), 2600); };
   const purchaseById = (id) => store.purchases.find(item => item.id === id);
   const sales = useMemo(() => store.sales.map(sale => ({ ...sale, purchase: purchaseById(sale.purchaseId) })), [store.sales, store.purchases]);
@@ -63,12 +111,14 @@ function App() {
   const updateSale = (form, editing) => { const purchase = store.purchases.find(item => item.id === form.purchaseId); const occupied = store.sales.some(sale => sale.id !== editing.id && sale.purchaseId === form.purchaseId); if (!purchase || occupied || Number(form.price) < 0 || Number(form.paid) < 0 || Number(form.paid) > Number(form.price)) return notify('Проверьте товар и суммы продажи'); const item = { ...form, id: editing.id, createdAt: editing.createdAt }; const purchases = store.purchases.map(p => { if (p.id === editing.purchaseId && p.id !== item.purchaseId && p.status === 'Продано') return { ...p, status: 'На складе' }; if (p.id === item.purchaseId) return { ...p, status: 'Продано' }; return p; }); persist({ ...store, sales: store.sales.map(s => s.id === item.id ? item : s), purchases }).then(() => { setModal(null); notify('Продажа обновлена'); }).catch(() => {}); };
   const addExpense = (form) => { if (Number(form.amount) < 0) return notify('Сумма расхода не может быть отрицательной'); persist({ ...store, expenses: [{ ...form, id: uid(), createdAt: Date.now() }, ...store.expenses] }).then(() => { setModal(null); notify('Расход сохранен'); }).catch(() => {}); };
   const updateExpense = (form, editing) => { if (Number(form.amount) < 0) return notify('Сумма расхода не может быть отрицательной'); persist({ ...store, expenses: store.expenses.map(item => item.id === editing.id ? { ...form, id: editing.id, createdAt: editing.createdAt } : item) }).then(() => { setModal(null); notify('Расход обновлен'); }).catch(() => {}); };
-  const updateSettings = (patch) => { const next = { ...store, settings: { ...store.settings, ...patch } }; persist(next); if (patch.autoLaunch !== undefined) storageAPI().setLaunch(patch.autoLaunch); if (patch.theme) setTheme(patch.theme); };
-  const restoreBackup = () => storageAPI().restoreBackup().then(data => { if (!data) return notify('Восстановление доступно в приложении Windows'); const next = { ...emptyStore, ...data, settings: { ...emptyStore.settings, ...data.settings, exchangeRates: { ...emptyStore.settings.exchangeRates, ...data.settings?.exchangeRates } } }; ['purchases', 'sales', 'expenses', 'taxPayments', 'refunds'].forEach(key => { if (!Array.isArray(next[key])) next[key] = []; }); setStore(next); setTheme(next.settings.theme); notify('Данные восстановлены'); }).catch(error => notify(error.message || 'Не удалось восстановить копию'));
+  const updateSettings = (patch) => { const next = { ...store, settings: { ...store.settings, ...patch } }; persist(next); if (patch.autoLaunch !== undefined) storageAPI(session).setLaunch(patch.autoLaunch); if (patch.theme) setTheme(patch.theme); };
+  const restoreBackup = () => storageAPI(session).restoreBackup().then(data => { if (!data) return notify('Восстановление доступно в приложении Windows'); const next = { ...emptyStore, ...data, settings: { ...emptyStore.settings, ...data.settings, exchangeRates: { ...emptyStore.settings.exchangeRates, ...data.settings?.exchangeRates } } }; ['purchases', 'sales', 'expenses', 'taxPayments', 'refunds'].forEach(key => { if (!Array.isArray(next[key])) next[key] = []; }); setStore(next); setTheme(next.settings.theme); notify('Данные восстановлены'); }).catch(error => notify(error.message || 'Не удалось восстановить копию'));
   const csvExport = () => { const rows = [['Дата', 'Товар', 'Страна', 'Продажа', 'Себестоимость', 'Маржа'], ...filteredSales.map(s => [s.date, s.purchase?.title || '', s.purchase?.country || '', Number(s.price || 0), Number(s.purchase?.totalCost || 0), Number(s.price || 0) - Number(s.purchase?.totalCost || 0)])]; const workbook = XLSX.utils.book_new(); const sheet = XLSX.utils.aoa_to_sheet(rows); XLSX.utils.book_append_sheet(workbook, sheet, 'Отчёт'); XLSX.writeFile(workbook, 'buyer-report.xlsx'); notify('Excel-файл сохранен'); };
-  const pdfExport = () => { const html = `<html><body style="font-family:Arial;padding:32px"><h1>Отчёт учёта байера</h1><p>Сформирован: ${date()}</p><h2>Выручка: ${money(metrics.revenue, store.settings.currency)}</h2><p>Себестоимость: ${money(metrics.cost, store.settings.currency)}</p><p>Операционные расходы: ${money(metrics.expenses, store.settings.currency)}</p><p>Налоги: ${money(metrics.taxes, store.settings.currency)}</p><h2>Чистая прибыль: ${money(metrics.profit, store.settings.currency)}</h2></body></html>`; storageAPI().exportPdf(html).then(path => path && notify('PDF сохранен')); };
+  const pdfExport = () => { const html = `<html><body style="font-family:Arial;padding:32px"><h1>Отчёт учёта байера</h1><p>Сформирован: ${date()}</p><h2>Выручка: ${money(metrics.revenue, store.settings.currency)}</h2><p>Себестоимость: ${money(metrics.cost, store.settings.currency)}</p><p>Операционные расходы: ${money(metrics.expenses, store.settings.currency)}</p><p>Налоги: ${money(metrics.taxes, store.settings.currency)}</p><h2>Чистая прибыль: ${money(metrics.profit, store.settings.currency)}</h2></body></html>`; storageAPI(session).exportPdf(html).then(path => path && notify('PDF сохранен')); };
   const navigate = nextPage => { setPage(nextPage); setMenuOpen(false); };
 
+  if (authLoading) return <AuthScreen loading />;
+  if (cloudEnabled && !session) return <AuthScreen />;
   return <div className={`app-shell ${menuOpen ? 'menu-open' : ''}`}>
     <div className="mobile-menu-backdrop" onClick={() => setMenuOpen(false)}></div>
     <aside className="sidebar">
@@ -77,7 +127,7 @@ function App() {
       <nav>{[['overview', 'Обзор', '⌂'], ['purchases', 'Закупки', '↘'], ['sales', 'Продажи', '↗'], ['expenses', 'Расходы', '◌'], ['debts', 'Дебиторка', '◷'], ['warehouse', 'Склад', '▦'], ['taxes', 'Налоги', '₽'], ['reports', 'Отчёты', '▤']].map(([id, label, icon]) => (id !== 'warehouse' || store.settings.showWarehouse) && <button className={page === id ? 'nav-item active' : 'nav-item'} onClick={() => navigate(id)} key={id}><i>{icon}</i>{label}{id === 'debts' && metrics.debts > 0 && <b>{money(metrics.debts, store.settings.currency)}</b>}</button>)}</nav>
       <div className="sidebar-bottom"><button className="nav-item" onClick={() => navigate('settings')}><i>⚙</i>Настройки</button><div className="offline"><span></span><div><strong>Только локально</strong><small>Данные не покидают устройство</small></div></div></div>
     </aside>
-    <main className="main"><header><button className="mobile-menu-button" aria-label="Открыть меню" onClick={() => setMenuOpen(true)}>☰</button><div><p className="eyebrow">ФИНАНСОВЫЙ ЦЕНТР</p><h1>{({ overview: 'Добрый день', purchases: 'Закупки', sales: 'Продажи', expenses: 'Операционные расходы', debts: 'Дебиторка', warehouse: 'Склад', taxes: 'Налоги', reports: 'Отчёты', settings: 'Настройки' })[page]}</h1></div><div className="header-actions"><button className="icon-btn" title="Переключить тему" onClick={() => updateSettings({ theme: theme === 'light' ? 'dark' : 'light' })}>{theme === 'light' ? '☾' : '☀'}</button><button className="avatar">Б</button></div></header>
+    <main className="main"><header><button className="mobile-menu-button" aria-label="Открыть меню" onClick={() => setMenuOpen(true)}>☰</button><div><p className="eyebrow">ФИНАНСОВЫЙ ЦЕНТР</p><h1>{({ overview: 'Добрый день', purchases: 'Закупки', sales: 'Продажи', expenses: 'Операционные расходы', debts: 'Дебиторка', warehouse: 'Склад', taxes: 'Налоги', reports: 'Отчёты', settings: 'Настройки' })[page]}</h1></div><div className="header-actions"><button className="icon-btn" title="Переключить тему" onClick={() => updateSettings({ theme: theme === 'light' ? 'dark' : 'light' })}>{theme === 'light' ? '☾' : '☀'}</button><button className="avatar" title="Выйти" onClick={() => cloudEnabled ? supabase.auth.signOut() : null}>Б</button></div></header>
       {page === 'overview' && <Overview metrics={metrics} store={store} setModal={setModal} setPage={setPage} period={period} setPeriod={setPeriod} sales={filteredSales} allSales={sales} />}
       {page === 'purchases' && <Purchases store={store} setModal={setModal} persist={persist} notify={notify} query={query} setQuery={setQuery} />}
       {page === 'sales' && <Sales sales={sales} store={store} setModal={setModal} persist={persist} notify={notify} query={query} setQuery={setQuery} />}

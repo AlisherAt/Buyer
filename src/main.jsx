@@ -15,7 +15,7 @@ const countries = ['США', 'Япония', 'Корея', 'Европа', 'Др
 const purchaseStatuses = ['Заказано', 'В пути', 'На складе', 'Продано'];
 const paymentStatuses = ['Полная предоплата', 'Частичная', 'Постоплата', 'Долг'];
 const expenseCategories = ['Реклама', 'Упаковка', 'Курьерка', 'Комиссия платёжной системы', 'Прочее'];
-const trialDurationMs = 24 * 60 * 60 * 1000;
+const trialDurationMs = 2 * 60 * 60 * 1000;
 const browserAPI = {
   getStore: async () => { try { return JSON.parse(localStorage.getItem('buyer-finance-store') || 'null') || emptyStore; } catch { return emptyStore; } },
   saveStore: async data => localStorage.setItem('buyer-finance-store', JSON.stringify(data)),
@@ -95,7 +95,8 @@ function AuthScreen({ loading = false }) {
 
 function SubscriptionScreen({ subscription, onSignOut }) {
   const expired = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString('ru-RU') : null;
-  return <div className="auth-shell"><div className="auth-card subscription-card"><div className="auth-brand"><div className="brand-mark">BF</div><div><h1>Учёт байера</h1><p>Доступ к облачному учёту</p></div></div><h2>Нужна активная подписка</h2><p>{expired ? `Доступ закончился ${expired}.` : 'Ваш бесплатный пробный период завершён.'}</p><div className="subscription-offer"><strong>Доступ к приложению</strong><span>1000 ₸ / месяц</span><small>Активируйте подписку, чтобы продолжить пользоваться учётом. Если оплата ещё не подключена, обратитесь к администратору.</small></div><button className="secondary full" onClick={onSignOut}>Выйти</button></div></div>;
+  const whatsappUrl = 'https://wa.me/77006520335?text=' + encodeURIComponent('Здравствуйте! Хочу продлить подписку на Учёт байера.');
+  return <div className="auth-shell"><div className="auth-card subscription-card"><div className="auth-brand"><div className="brand-mark">BF</div><div><h1>Учёт байера</h1><p>Доступ к облачному учёту</p></div></div><h2>Пробный период завершён</h2><p>{expired ? `Доступ закончился ${expired}.` : 'Ваш бесплатный пробный период завершён.'} Данные аккаунта сохранены.</p><div className="subscription-offer"><strong>Продолжить работу</strong><span>1000 ₸ / месяц</span><small>Напишите администратору в WhatsApp, чтобы согласовать подписку. После подтверждения доступ к вашим данным будет восстановлен.</small></div><a className="primary full whatsapp-button" href={whatsappUrl} target="_blank" rel="noreferrer">Написать в WhatsApp</a><button className="secondary full" onClick={onSignOut}>Выйти</button></div></div>;
 }
 
 function App() {

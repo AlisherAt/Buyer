@@ -177,7 +177,8 @@ function App() {
   const trialHours = Math.floor(trialRemaining / 3600000);
   const trialMinutes = Math.floor((trialRemaining % 3600000) / 60000);
   const trialSeconds = Math.floor((trialRemaining % 60000) / 1000);
-  const hasAccess = profile?.role === 'admin' || inTrial || (subscription?.status === 'active' && (subscription.is_permanent || (subscription.current_period_end && new Date(subscription.current_period_end) > new Date())));
+  const accessRevoked = subscription?.status === 'inactive';
+  const hasAccess = profile?.role === 'admin' || (!accessRevoked && (inTrial || (subscription?.status === 'active' && (subscription.is_permanent || (subscription.current_period_end && new Date(subscription.current_period_end) > new Date())))));
   if (cloudEnabled && !hasAccess) return <SubscriptionScreen subscription={subscription} onSignOut={() => supabase.auth.signOut()} />;
   return <div className={`app-shell ${menuOpen ? 'menu-open' : ''}`}>
     <div className="mobile-menu-backdrop" onClick={() => setMenuOpen(false)}></div>

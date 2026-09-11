@@ -8,11 +8,10 @@ export default function AdminSubscriptions({ notify }) {
   const [days, setDays] = useState('30');
   const [subscriptions, setSubscriptions] = useState({});
   const loadUsers = async () => {
-    const [{ data: profileData, error: profileError }, { data: subscriptionData, error: subscriptionError }] = await Promise.all([
-      supabase.from('profiles').select('user_id,email,role,created_at').order('created_at', { ascending: false }),
-      supabase.from('subscriptions').select('user_id,status,plan,current_period_end,is_permanent,amount,currency')
-    ]);
-    if (profileError || subscriptionError) return notify('Не удалось загрузить пользователей. Проверьте SQL и права администратора.');
+    const { data: profileData, error: profileError } = await supabase.from('profiles').select('user_id,email,role,created_at').order('created_at', { ascending: false });
+    if (profileError) return notify('Не удалось загрузить пользователей. Выполните supabase-schema.sql и проверьте роль admin.');
+    const { data: subscriptionData, error: subscriptionError } = await supabase.from('subscriptions').select('user_id,status,plan,current_period_end,is_permanent,amount,currency');
+    if (subscriptionError) notify('Пользователи загружены, но подписки пока недоступны. Выполните supabase-schema.sql.');
     const nextSubscriptions = Object.fromEntries((subscriptionData || []).map(item => [item.user_id, item]));
     setSubscriptions(nextSubscriptions);
     setProfiles(profileData || []);

@@ -103,7 +103,7 @@ function App() {
   const [profile, setProfile] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [accountLoading, setAccountLoading] = useState(cloudEnabled);
-  const [, setTrialTick] = useState(0);
+  const [trialNow, setTrialNow] = useState(Date.now());
   const [authLoading, setAuthLoading] = useState(cloudEnabled);
   const [store, setStore] = useState(emptyStore);
   const [page, setPage] = useState('overview');
@@ -133,7 +133,7 @@ function App() {
   }, [session]);
   useEffect(() => {
     if (!profile?.created_at) return undefined;
-    const timer = setInterval(() => setTrialTick(value => value + 1), 1000);
+    const timer = setInterval(() => setTrialNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [profile?.created_at]);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
@@ -171,7 +171,11 @@ function App() {
   if (cloudEnabled && !session) return <AuthScreen />;
   if (cloudEnabled && accountLoading) return <AuthScreen loading />;
   const trialEnd = (profile?.created_at || session?.user?.created_at) ? new Date(profile?.created_at || session.user.created_at).getTime() + trialDurationMs : 0;
-  const inTrial = profile?.role !== 'admin' && trialEnd > Date.now();
+  const inTrial = profile?.role !== 'admin' && trialEnd > trialNow;
+  const trialRemaining = Math.max(0, trialEnd - trialNow);
+  const trialHours = Math.floor(trialRemaining / 3600000);
+  const trialMinutes = Math.floor((trialRemaining % 3600000) / 60000);
+  const trialSeconds = Math.floor((trialRemaining % 60000) / 1000);
   const hasAccess = profile?.role === 'admin' || inTrial || (subscription?.status === 'active' && (subscription.is_permanent || (subscription.current_period_end && new Date(subscription.current_period_end) > new Date())));
   if (cloudEnabled && !hasAccess) return <SubscriptionScreen subscription={subscription} onSignOut={() => supabase.auth.signOut()} />;
   return <div className={`app-shell ${menuOpen ? 'menu-open' : ''}`}>
@@ -179,10 +183,11 @@ function App() {
     <aside className="sidebar">
       <button className="mobile-menu-close" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)}>×</button>
       <div className="brand"><div className="brand-mark">BF</div><div><strong>УЧЁТ БАЙЕРА</strong><span>Локальная система</span></div></div>
-      <nav>{[['overview', 'Обзор', '⌂'], ['purchases', 'Закупки', '↘'], ['sales', 'Продажи', '↗'], ['expenses', 'Расходы', '◌'], ['debts', 'Дебиторка', '◷'], ['warehouse', 'Склад', '▦'], ['taxes', 'Налоги', '₽'], ['reports', 'Отчёты', '▤']].map(([id, label, icon]) => (id !== 'warehouse' || store.settings.showWarehouse) && <button className={page === id ? 'nav-item active' : 'nav-item'} onClick={() => navigate(id)} key={id}><i>{icon}</i>{label}{id === 'debts' && metrics.debts > 0 && <b>{money(metrics.debts, store.settings.currency)}</b>}</button>)}</nav>
+      <nav>{[['overview', 'Обзор', '⌂'], ['purchases', 'Закупки', '↘'], ['sales', 'Продажи', '↗'], ['expenses', 'Расходы', '◌'], ['debts', 'Дебиторка', '◷'], ['warehouse', 'Склад', '▦'], ['taxes', 'Налоги', '₽'], ['reports', 'Отчёты', '▤'], ...(profile?.role === 'admin' ? [['admin', 'Админ-панель', '♙']] : [])].map(([id, label, icon]) => (id !== 'warehouse' || store.settings.showWarehouse) && <button className={page === id ? 'nav-item active' : 'nav-item'} onClick={() => navigate(id)} key={id}><i>{icon}</i>{label}{id === 'debts' && metrics.debts > 0 && <b>{money(metrics.debts, store.settings.currency)}</b>}</button>)}</nav>
       <div className="sidebar-bottom"><button className="nav-item" onClick={() => navigate('settings')}><i>⚙</i>Настройки</button><div className="offline"><span></span><div><strong>Только локально</strong><small>Данные не покидают устройство</small></div></div></div>
     </aside>
-    <main className="main"><header><button className="mobile-menu-button" aria-label="Открыть меню" onClick={() => setMenuOpen(true)}>☰</button><div><p className="eyebrow">ФИНАНСОВЫЙ ЦЕНТР</p><h1>{({ overview: 'Добрый день', purchases: 'Закупки', sales: 'Продажи', expenses: 'Операционные расходы', debts: 'Дебиторка', warehouse: 'Склад', taxes: 'Налоги', reports: 'Отчёты', settings: 'Настройки' })[page]}</h1></div><div className="header-actions"><button className="icon-btn" title="Переключить тему" onClick={() => updateSettings({ theme: theme === 'light' ? 'dark' : 'light' })}>{theme === 'light' ? '☾' : '☀'}</button><button className="avatar" title="Выйти" onClick={() => cloudEnabled ? supabase.auth.signOut() : null}>Б</button></div></header>
+    <main className="main"><header><button className="mobile-menu-button" aria-label="Открыть меню" onClick={() => setMenuOpen(true)}>☰</button><div><p className="eyebrow">ФИНАНСОВЫЙ ЦЕНТР</p><h1>{({ overview: 'Добрый день', purchases: 'Закупки', sales: 'Продажи', expenses: 'Операционные расходы', debts: 'Дебиторка', warehouse: 'Склад', taxes: 'Налоги', reports: 'Отчёты', settings: 'Настройки', admin: 'Админ-панель' })[page]}</h1></div><div className="header-actions"><button className="icon-btn" title="Переключить тему" onClick={() => updateSettings({ theme: theme === 'light' ? 'dark' : 'light' })}>{theme === 'light' ? '☾' : '☀'}</button><button className="avatar" title="Выйти" onClick={() => cloudEnabled ? supabase.auth.signOut() : null}>Б</button></div></header>
+      {inTrial && profile?.role !== 'admin' && <div className="trial-banner">Пробный период: <strong>{trialHours} ч {String(trialMinutes).padStart(2, '0')} мин {String(trialSeconds).padStart(2, '0')} сек</strong></div>}
       {page === 'overview' && <Overview metrics={metrics} store={store} setModal={setModal} setPage={setPage} period={period} setPeriod={setPeriod} sales={filteredSales} allSales={sales} />}
       {page === 'purchases' && <Purchases store={store} setModal={setModal} persist={persist} notify={notify} query={query} setQuery={setQuery} />}
       {page === 'sales' && <Sales sales={sales} store={store} setModal={setModal} persist={persist} notify={notify} query={query} setQuery={setQuery} />}
@@ -192,7 +197,7 @@ function App() {
       {page === 'taxes' && <Taxes store={store} metrics={metrics} persist={persist} />}
       {page === 'reports' && <Reports metrics={metrics} sales={sales} store={store} csvExport={csvExport} pdfExport={pdfExport} />}
       {page === 'settings' && <Settings store={store} updateSettings={updateSettings} notify={notify} restoreBackup={restoreBackup} profile={profile} />}
-      {page === 'settings' && profile?.role === 'admin' && <AdminSubscriptions notify={notify} />}
+      {page === 'admin' && profile?.role === 'admin' && <AdminSubscriptions notify={notify} />}
     </main>
     {(modal === 'purchase' || modal?.type === 'purchase') && <PurchaseModal value={modal?.value} onSave={modal?.value ? updatePurchase : addPurchase} onClose={() => setModal(null)} settings={store.settings} />}
     {(modal === 'sale' || modal?.type === 'sale') && <SaleModal value={modal?.value} onSave={modal?.value ? updateSale : addSale} onClose={() => setModal(null)} purchases={store.purchases.filter(p => p.status !== 'Продано' || p.id === modal?.value?.purchaseId)} currency={store.settings.currency} />}

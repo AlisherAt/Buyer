@@ -65,6 +65,27 @@ create policy "Users can create own profile" on public.profiles for insert with 
 drop policy if exists "Admins can read profiles" on public.profiles;
 create policy "Admins can read profiles" on public.profiles for select using (public.is_admin());
 
+create or replace function public.admin_list_users()
+returns table (user_id uuid, email text, role text, created_at timestamptz)
+language plpgsql
+security definer
+set search_path = public, auth
+stable
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Only administrators can list users';
+  end if;
+  return query
+    select u.id, u.email::text, coalesce(p.role, 'user')::text, u.created_at
+    from auth.users u
+    left join public.profiles p on p.user_id = u.id
+    order by u.created_at desc;
+end;
+$$;
+
+grant execute on function public.admin_list_users() to authenticated;
+
 create table if not exists public.subscriptions (
   user_id uuid primary key references auth.users(id) on delete cascade,
   status text not null default 'inactive' check (status in ('active', 'inactive')),

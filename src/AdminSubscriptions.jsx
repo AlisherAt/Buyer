@@ -8,7 +8,7 @@ export default function AdminSubscriptions({ notify }) {
   const [days, setDays] = useState('30');
   const [subscriptions, setSubscriptions] = useState({});
   const loadUsers = async () => {
-    const { data: profileData, error: profileError } = await supabase.from('profiles').select('user_id,email,role,created_at').order('created_at', { ascending: false });
+    const { data: profileData, error: profileError } = await supabase.rpc('admin_list_users');
     if (profileError) return notify('Не удалось загрузить пользователей. Выполните supabase-schema.sql и проверьте роль admin.');
     const { data: subscriptionData, error: subscriptionError } = await supabase.from('subscriptions').select('user_id,status,plan,current_period_end,is_permanent,amount,currency');
     if (subscriptionError) notify('Пользователи загружены, но подписки пока недоступны. Выполните supabase-schema.sql.');

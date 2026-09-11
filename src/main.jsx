@@ -76,8 +76,15 @@ if (!window.buyerAPI) window.buyerAPI = browserAPI;
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 
 function calcPurchase(form, mainCurrency = 'KZT', exchangeRates = {}) { const productRate = Number(form.rate || 0); const internalRate = mainCurrency === 'KZT' ? 1 : Number(form.internalDeliveryRate || exchangeRates.KZT || 0); const productCost = Number(form.price || 0) * productRate; const internalDelivery = Number(form.internalDelivery || 0) * internalRate; const internationalDelivery = Number(form.internationalDelivery || 0) * productRate; return productCost + internalDelivery + internationalDelivery + Number(form.customs || 0) + Number(form.agentFee || 0); }
-function blankPurchase(settings = {}) { return { date: date(), country: 'США', platform: '', title: '', category: 'Без категории', link: '', price: '', currency: 'USD', rate: settings.exchangeRates?.USD || '', internalDelivery: '', internalDeliveryRate: '', internationalDelivery: '', internationalDeliveryRate: '', customs: '', agentFee: '', status: 'Заказано' }; }
-function blankSale(settings = {}) { return { date: date(), purchaseId: '', title: '', link: '', client: '', price: '', paymentStatus: 'Полная предоплата', paid: '', buyPrice: '', buyCurrency: 'USD', delivery: '', rate: settings.exchangeRates?.USD || '', country: 'США', platform: '', category: 'Без категории' }; }
+function getCurrencyRate(currency, settings = {}, liveRates = {}) {
+  const code = String(currency || 'USD').toUpperCase();
+  const stored = settings.exchangeRates?.[code];
+  if (stored !== undefined && stored !== null && stored !== '') return String(stored);
+  const live = liveRates?.[code];
+  return live != null && live !== '' ? String(live) : '';
+}
+function blankPurchase(settings = {}) { return { date: date(), country: 'США', platform: '', title: '', category: 'Без категории', link: '', price: '', currency: 'USD', rate: getCurrencyRate('USD', settings, {}), internalDelivery: '', internalDeliveryRate: '', internationalDelivery: '', internationalDeliveryRate: '', customs: '', agentFee: '', status: 'Заказано' }; }
+function blankSale(settings = {}) { return { date: date(), purchaseId: '', title: '', link: '', client: '', price: '', paymentStatus: 'Полная предоплата', paid: '', buyPrice: '', buyCurrency: 'USD', delivery: '', rate: getCurrencyRate('USD', settings, {}), country: 'США', platform: '', category: 'Без категории' }; }
 function snapshotSale(form, taxRate) {
   const calc = calcDeal(form, taxRate);
   return {
@@ -424,7 +431,7 @@ function Sales({ sales, store, setModal, persist, notify, query, setQuery }) {
   </>;
 }
 
-function Settings({ store, updateSettings, notify, restoreBackup, liveRates, refreshKaspiRate }) { return <div className="settings-grid"><section className="panel settings-card"><div className="panel-heading"><div><p className="eyebrow">ПАРАМЕТРЫ</p><h2>Основные настройки</h2></div></div><label>Основная валюта<select value={store.settings.currency} onChange={event => updateSettings({ currency: event.target.value })}><option>KZT</option><option>RUB</option><option>USD</option><option>EUR</option></select></label><div className="exchange-rates"><strong>Курс Каспи к {store.settings.currency}</strong><p className="subtle">{liveRates?.USD ? `Сейчас ${Number(liveRates.USD).toFixed(2)} ₸ за $1${liveRates.source ? ` · ${liveRates.source}` : ''}` : 'Курс подтянется автоматически. Если Каспи снял больше — поправьте в сделке.'}</p><label>USD<input type="number" min="0" step="0.0001" value={store.settings.exchangeRates?.USD || ''} onChange={event => updateSettings({ exchangeRates: { ...store.settings.exchangeRates, USD: event.target.value } })} placeholder="Например, 471" /></label><label>EUR<input type="number" min="0" step="0.0001" value={store.settings.exchangeRates?.EUR || ''} onChange={event => updateSettings({ exchangeRates: { ...store.settings.exchangeRates, EUR: event.target.value } })} /></label><button type="button" className="secondary full" onClick={() => refreshKaspiRate(false)}>Обновить курс Каспи</button></div><div className="exchange-rates"><strong>Налог и комиссия</strong><small className="subtle">По вашему сценарию: 1% платёжная система + 3% налог = 4% итого</small><label>Комиссия Pay, %<input type="number" min="0" max="100" step="0.1" value={store.settings.paymentFeeRate ?? 1} onChange={event => updateSettings({ paymentFeeRate: Number(event.target.value) })} /></label><label>Налог, %<input type="number" min="0" max="100" step="0.1" value={store.settings.taxRate ?? 3} onChange={event => updateSettings({ taxRate: Number(event.target.value) })} /></label><div className="subtle">Итого: <strong>{Number((store.settings.paymentFeeRate ?? 1) + (store.settings.taxRate ?? 3)).toFixed(1)}%</strong></div></div><label className="switch-row">Запускать при включении компьютера <input type="checkbox" checked={store.settings.autoLaunch} onChange={event => updateSettings({ autoLaunch: event.target.checked })} /><span className="switch"></span></label><label className="switch-row">Показывать склад <input type="checkbox" checked={store.settings.showWarehouse} onChange={event => updateSettings({ showWarehouse: event.target.checked })} /><span className="switch"></span></label><label>Тема интерфейса<select value={store.settings.theme} onChange={event => updateSettings({ theme: event.target.value })}><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label></section><section className="panel settings-card"><div className="panel-heading"><div><p className="eyebrow">ДАННЫЕ</p><h2>Резервное копирование</h2></div></div><p className="subtle">Сохраняйте копию локального файла с данными.</p><button className="secondary full" onClick={() => window.buyerAPI.saveBackup().then(path => path && notify('Резервная копия сохранена'))}>↓ Сохранить копию</button><button className="secondary full" onClick={restoreBackup}>↥ Восстановить копию</button></section></div>; }
+function Settings({ store, updateSettings, notify, restoreBackup, liveRates, refreshKaspiRate }) { return <div className="settings-grid"><section className="panel settings-card"><div className="panel-heading"><div><p className="eyebrow">ПАРАМЕТРЫ</p><h2>Основные настройки</h2></div></div><label>Основная валюта<select value={store.settings.currency} onChange={event => updateSettings({ currency: event.target.value })}><option>KZT</option><option>RUB</option><option>USD</option><option>EUR</option></select></label><div className="exchange-rates"><strong>Курс Каспи к {store.settings.currency}</strong><p className="subtle">{liveRates?.USD ? `Сейчас ${Number(liveRates.USD).toFixed(2)} ₸ за $1${liveRates.source ? ` · ${liveRates.source}` : ''}` : 'Курс подтянется автоматически. Если Каспи снял больше — поправьте в сделке.'}</p><label>USD<input type="number" min="0" step="0.0001" value={store.settings.exchangeRates?.USD || ''} onChange={event => updateSettings({ exchangeRates: { ...store.settings.exchangeRates, USD: event.target.value } })} placeholder="Например, 471" /></label><label>EUR<input type="number" min="0" step="0.0001" value={store.settings.exchangeRates?.EUR || ''} onChange={event => updateSettings({ exchangeRates: { ...store.settings.exchangeRates, EUR: event.target.value } })} /></label><label>JPY<input type="number" min="0" step="0.0001" value={store.settings.exchangeRates?.JPY || ''} onChange={event => updateSettings({ exchangeRates: { ...store.settings.exchangeRates, JPY: event.target.value } })} /></label><label>KRW<input type="number" min="0" step="0.0001" value={store.settings.exchangeRates?.KRW || ''} onChange={event => updateSettings({ exchangeRates: { ...store.settings.exchangeRates, KRW: event.target.value } })} /></label><button type="button" className="secondary full" onClick={() => refreshKaspiRate(false)}>Обновить курс Каспи</button></div><div className="exchange-rates"><strong>Налог и комиссия</strong><small className="subtle">По вашему сценарию: 1% платёжная система + 3% налог = 4% итого</small><label>Комиссия Pay, %<input type="number" min="0" max="100" step="0.1" value={store.settings.paymentFeeRate ?? 1} onChange={event => updateSettings({ paymentFeeRate: Number(event.target.value) })} /></label><label>Налог, %<input type="number" min="0" max="100" step="0.1" value={store.settings.taxRate ?? 3} onChange={event => updateSettings({ taxRate: Number(event.target.value) })} /></label><div className="subtle">Итого: <strong>{Number((store.settings.paymentFeeRate ?? 1) + (store.settings.taxRate ?? 3)).toFixed(1)}%</strong></div></div><label className="switch-row">Запускать при включении компьютера <input type="checkbox" checked={store.settings.autoLaunch} onChange={event => updateSettings({ autoLaunch: event.target.checked })} /><span className="switch"></span></label><label className="switch-row">Показывать склад <input type="checkbox" checked={store.settings.showWarehouse} onChange={event => updateSettings({ showWarehouse: event.target.checked })} /><span className="switch"></span></label><label>Тема интерфейса<select value={store.settings.theme} onChange={event => updateSettings({ theme: event.target.value })}><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label></section><section className="panel settings-card"><div className="panel-heading"><div><p className="eyebrow">ДАННЫЕ</p><h2>Резервное копирование</h2></div></div><p className="subtle">Сохраняйте копию локального файла с данными.</p><button className="secondary full" onClick={() => window.buyerAPI.saveBackup().then(path => path && notify('Резервная копия сохранена'))}>↓ Сохранить копию</button><button className="secondary full" onClick={restoreBackup}>↥ Восстановить копию</button></section></div>; }
 
 function LegacyPurchaseModalV2({ onSave, onClose, settings, value }) {
   const [form, setForm] = useState(() => ({ ...blankPurchase(), ...(value || {}) }));
@@ -434,11 +441,10 @@ function LegacyPurchaseModalV2({ onSave, onClose, settings, value }) {
 }
 
 function DealModal({ onSave, onClose, purchases, settings, liveRates, value, refreshKaspiRate }) {
-  const defaultRate = settings.exchangeRates?.USD || liveRates?.USD || '';
   const [form, setForm] = useState(() => ({
     ...blankSale(settings),
     ...(value || {}),
-    rate: value?.rate ?? defaultRate,
+    rate: value?.rate ?? getCurrencyRate(value?.buyCurrency || 'USD', settings, liveRates),
     buyPrice: value?.buyPrice || value?.purchase?.price || '',
     buyCurrency: value?.buyCurrency || value?.purchase?.currency || 'USD',
     delivery: value?.delivery || value?.purchase?.internationalDelivery || '',
@@ -450,12 +456,13 @@ function DealModal({ onSave, onClose, purchases, settings, liveRates, value, ref
   }));
   const set = (key, nextValue) => setForm(current => ({ ...current, [key]: nextValue }));
   useEffect(() => {
-    if (!value && !form.rate && defaultRate) {
-      set('rate', String(defaultRate));
+    const nextRate = getCurrencyRate(form.buyCurrency || 'USD', settings, liveRates);
+    if (!value && (!form.rate || form.rate === '' || Number(form.rate) <= 0 || String(form.buyCurrency) !== (value?.buyCurrency || form.buyCurrency))) {
+      set('rate', nextRate);
     }
-  }, [defaultRate, value, form.rate]);
+  }, [form.buyCurrency, settings.exchangeRates, liveRates, value]);
   const calculated = calcDeal(form, combinedTaxRate(settings));
-  const currentRateLabel = Number(form.rate || defaultRate || 0) ? `${Number(form.rate || defaultRate).toFixed(2)} ₸` : 'Курс не указан';
+  const currentRateLabel = Number(form.rate || 0) ? `${Number(form.rate).toFixed(2)} ₸` : 'Курс не указан';
   return <Modal title={value ? 'Изменить сделку' : 'Новая сделка'} onClose={onClose} onSubmit={event => { event.preventDefault(); onSave(form, value); }}>
     <div className="form-grid">
       <Field label="Дата сделки"><input type="date" value={form.date} onChange={event => set('date', event.target.value)} required /></Field>
@@ -472,7 +479,7 @@ function DealModal({ onSave, onClose, purchases, settings, liveRates, value, ref
       <Field label="Получено"><input type="number" min="0" step="0.01" value={form.paid} onChange={event => set('paid', event.target.value)} required /></Field>
       <Field label="Статус оплаты"><select value={form.paymentStatus} onChange={event => set('paymentStatus', event.target.value)}>{paymentStatuses.map(status => <option key={status}>{status}</option>)}</select></Field>
       <Field label="Закупка / цена товара"><input type="number" min="0" step="0.01" value={form.buyPrice} onChange={event => set('buyPrice', event.target.value)} required /></Field>
-      <Field label="Валюта закупки"><select value={form.buyCurrency} onChange={event => set('buyCurrency', event.target.value)}><option>USD</option><option>JPY</option><option>KRW</option><option>EUR</option></select></Field>
+      <Field label="Валюта закупки"><select value={form.buyCurrency} onChange={event => { const nextCurrency = event.target.value; set('buyCurrency', nextCurrency); set('rate', getCurrencyRate(nextCurrency, settings, liveRates)); }}><option>USD</option><option>JPY</option><option>KRW</option><option>EUR</option></select></Field>
       <Field label="Доставка"><input type="number" min="0" step="0.01" value={form.delivery} onChange={event => set('delivery', event.target.value)} /></Field>
       <Field label={`Курс ${form.buyCurrency} → ${settings.currency}`}><input type="number" min="0" step="0.0001" value={form.rate} onChange={event => set('rate', event.target.value)} required /></Field>
       <Field label="Страна"><select value={form.country} onChange={event => set('country', event.target.value)}>{countries.map(country => <option key={country}>{country}</option>)}</select></Field>
@@ -492,14 +499,14 @@ function DealModal({ onSave, onClose, purchases, settings, liveRates, value, ref
 }
 
 function PurchaseModal({ onSave, onClose, settings, value, liveRates }) {
-  const defaultRate = settings.exchangeRates?.USD || liveRates?.USD || '';
-  const [form, setForm] = useState(() => ({ ...blankPurchase(settings), ...(value || {}), rate: value?.rate ?? defaultRate }));
+  const [form, setForm] = useState(() => ({ ...blankPurchase(settings), ...(value || {}), rate: value?.rate ?? getCurrencyRate(value?.currency || 'USD', settings, liveRates) }));
   const set = (key, nextValue) => setForm(current => ({ ...current, [key]: nextValue }));
   useEffect(() => {
-    if (!value && !form.rate && defaultRate) {
-      set('rate', String(defaultRate));
+    const nextRate = getCurrencyRate(form.currency || 'USD', settings, liveRates);
+    if (!value && (!form.rate || form.rate === '' || Number(form.rate) <= 0)) {
+      set('rate', nextRate);
     }
-  }, [defaultRate, value, form.rate]);
+  }, [form.currency, settings.exchangeRates, liveRates, value]);
   const internalRate = settings.currency === 'KZT' ? 1 : (settings.exchangeRates?.KZT || '');
   return <Modal title={value ? 'Изменить закупку' : 'Новая закупка'} onClose={onClose} onSubmit={event => { event.preventDefault(); onSave({ ...form, internalDeliveryRate: internalRate }, value); }}><div className="form-grid">
     <Field label="Дата закупки"><input type="date" value={form.date} onChange={event => set('date', event.target.value)} required /></Field>
@@ -509,7 +516,7 @@ function PurchaseModal({ onSave, onClose, settings, value, liveRates }) {
     <Field label="Категория"><input value={form.category} onChange={event => set('category', event.target.value)} /></Field>
     <Field label="Ссылка"><input type="url" value={form.link} onChange={event => set('link', event.target.value)} placeholder="https://..." /></Field>
     <Field label="Цена товара"><input type="number" min="0" step="0.01" value={form.price} onChange={event => set('price', event.target.value)} required /></Field>
-    <Field label="Валюта товара"><select value={form.currency} onChange={event => set('currency', event.target.value)}><option>USD</option><option>JPY</option><option>KRW</option><option>EUR</option></select></Field>
+    <Field label="Валюта товара"><select value={form.currency} onChange={event => { const nextCurrency = event.target.value; set('currency', nextCurrency); set('rate', getCurrencyRate(nextCurrency, settings, liveRates)); }}><option>USD</option><option>JPY</option><option>KRW</option><option>EUR</option></select></Field>
     <Field label={`Единый курс ${form.currency} к ${settings.currency}`}><input type="number" min="0" step="0.0001" value={form.rate} onChange={event => set('rate', event.target.value)} required /></Field>
     <Field label="Внутренняя доставка (тенге)"><input type="number" min="0" step="0.01" value={form.internalDelivery} onChange={event => set('internalDelivery', event.target.value)} /></Field>
     <Field label={`Международная доставка (${form.currency})`}><input type="number" min="0" step="0.01" value={form.internationalDelivery} onChange={event => set('internationalDelivery', event.target.value)} /></Field>

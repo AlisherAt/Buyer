@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as XLSX from 'xlsx';
 import './styles.css';
+import './mobile.css';
 
 const emptyStore = { settings: { currency: 'RUB', taxRate: 4, autoLaunch: true, showWarehouse: true, theme: 'light', categories: ['Без категории'], exchangeRates: { KZT: '', USD: '' } }, purchases: [], sales: [], expenses: [], taxPayments: [], refunds: [] };
 const money = (value, currency = 'RUB') => new Intl.NumberFormat('ru-RU', { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number(value) || 0);

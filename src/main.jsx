@@ -36,7 +36,9 @@ const cloudAPI = {
     if (error) throw error;
   },
   getProfile: async () => {
-    const { data, error } = await supabase.from('profiles').select('user_id,email,role').maybeSingle();
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    const { data, error } = await supabase.from('profiles').select('user_id,email,role').eq('user_id', userData.user.id).single();
     if (error) throw error;
     return data;
   },

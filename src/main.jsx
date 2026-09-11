@@ -38,7 +38,12 @@ const cloudAPI = {
   getProfile: async () => {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError) throw userError;
-    const { data, error } = await supabase.from('profiles').select('user_id,email,role').eq('user_id', userData.user.id).single();
+    let { data, error } = await supabase.from('profiles').select('user_id,email,role,created_at').eq('user_id', userData.user.id).maybeSingle();
+    if (!data && !error) {
+      const result = await supabase.from('profiles').insert({ user_id: userData.user.id, email: userData.user.email, role: 'user' }).select('user_id,email,role,created_at').single();
+      data = result.data;
+      error = result.error;
+    }
     if (error) throw error;
     return data;
   },
@@ -97,6 +102,7 @@ function App() {
   const [profile, setProfile] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [accountLoading, setAccountLoading] = useState(cloudEnabled);
+  const [, setTrialTick] = useState(0);
   const [authLoading, setAuthLoading] = useState(cloudEnabled);
   const [store, setStore] = useState(emptyStore);
   const [page, setPage] = useState('overview');
@@ -120,6 +126,11 @@ function App() {
     if (!session || !cloudEnabled) return;
     Promise.all([cloudAPI.getProfile(), cloudAPI.getSubscription()]).then(([nextProfile, nextSubscription]) => { setProfile(nextProfile); setSubscription(nextSubscription); }).catch(() => {}).finally(() => setAccountLoading(false));
   }, [session]);
+  useEffect(() => {
+    if (!profile?.created_at) return undefined;
+    const timer = setInterval(() => setTrialTick(value => value + 1), 1000);
+    return () => clearInterval(timer);
+  }, [profile?.created_at]);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   const persist = (next) => { setStore(next); return storageAPI(session).saveStore(next).catch(() => { notify('Не удалось сохранить данные'); throw new Error('save failed'); }); };
   const notify = (text) => { setToast(text); setTimeout(() => setToast(''), 2600); };
@@ -154,7 +165,9 @@ function App() {
   if (authLoading) return <AuthScreen loading />;
   if (cloudEnabled && !session) return <AuthScreen />;
   if (cloudEnabled && accountLoading) return <AuthScreen loading />;
-  const hasAccess = profile?.role === 'admin' || (subscription?.status === 'active' && (subscription.is_permanent || (subscription.current_period_end && new Date(subscription.current_period_end) > new Date())));
+  const trialEnd = profile?.created_at ? new Date(profile.created_at).getTime() + 60 * 1000 : 0;
+  const inTrial = profile?.role !== 'admin' && trialEnd > Date.now();
+  const hasAccess = profile?.role === 'admin' || inTrial || (subscription?.status === 'active' && (subscription.is_permanent || (subscription.current_period_end && new Date(subscription.current_period_end) > new Date())));
   if (cloudEnabled && !hasAccess) return <SubscriptionScreen subscription={subscription} onSignOut={() => supabase.auth.signOut()} />;
   return <div className={`app-shell ${menuOpen ? 'menu-open' : ''}`}>
     <div className="mobile-menu-backdrop" onClick={() => setMenuOpen(false)}></div>

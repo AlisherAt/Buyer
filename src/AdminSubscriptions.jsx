@@ -17,7 +17,11 @@ export default function AdminSubscriptions({ notify }) {
     setSubscriptions(nextSubscriptions);
     setProfiles(profileData || []);
   };
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => {
+    loadUsers();
+    const timer = setInterval(loadUsers, 5000);
+    return () => clearInterval(timer);
+  }, []);
   const search = event => { event.preventDefault(); setProfiles(current => current.filter(item => item.email.toLowerCase().includes(email.toLowerCase()))); };
   const save = async (permanent = false, extend = false) => {
     if (!selectedUser) return notify('Выберите пользователя');
@@ -45,5 +49,5 @@ export default function AdminSubscriptions({ notify }) {
     return end > new Date() ? `До ${end.toLocaleDateString('ru-RU')}` : 'Истёк';
   };
   const filteredProfiles = profiles.filter(item => item.email.toLowerCase().includes(email.toLowerCase()));
-  return <section className="panel settings-card admin-subscriptions"><div className="panel-heading"><div><p className="eyebrow">АДМИНИСТРАТОР</p><h2>Пользователи и подписки</h2></div></div><p className="subtle">Здесь видны все аккаунты. Выберите пользователя, чтобы изменить его доступ.</p><form className="inline-form" onSubmit={search}><input type="search" placeholder="Поиск по email" value={email} onChange={event => setEmail(event.target.value)} /><button className="secondary">Найти</button></form><div className="admin-users">{filteredProfiles.map(item => <button className={`admin-user ${selectedUser?.user_id === item.user_id ? 'selected' : ''}`} key={item.user_id} onClick={() => setSelectedUser(item)}><span>{item.email}</span><small>{item.role === 'admin' ? 'Администратор' : 'Пользователь'} · {status(item)}</small></button>)}</div>{selectedUser && <div className="admin-access-form"><strong>{selectedUser.email}</strong><label>Добавить дней<input type="number" min="1" value={days} onChange={event => setDays(event.target.value)} /></label><div className="admin-actions"><button className="primary" onClick={() => save(false, false)}>Выдать доступ</button><button className="secondary" onClick={() => save(false, true)}>Продлить</button><button className="secondary" onClick={() => save(true, false)}>Сделать бессрочной</button><button className="delete-btn" onClick={disable}>Отключить</button></div></div>}</section>;
+  return <section className="panel settings-card admin-subscriptions"><div className="panel-heading"><div><p className="eyebrow">АДМИНИСТРАТОР</p><h2>Пользователи и подписки</h2></div><button className="secondary" onClick={loadUsers}>Обновить</button></div><p className="subtle">Новые аккаунты появляются автоматически. Список обновляется каждые 5 секунд.</p><form className="inline-form" onSubmit={search}><input type="search" placeholder="Поиск по email" value={email} onChange={event => setEmail(event.target.value)} /><button className="secondary">Найти</button></form><div className="admin-users">{filteredProfiles.map(item => <button className={`admin-user ${selectedUser?.user_id === item.user_id ? 'selected' : ''}`} key={item.user_id} onClick={() => setSelectedUser(item)}><span>{item.email}</span><small>{item.role === 'admin' ? 'Администратор' : 'Пользователь'} · {status(item)}</small></button>)}</div>{selectedUser && <div className="admin-access-form"><strong>{selectedUser.email}</strong><label>Добавить дней<input type="number" min="1" value={days} onChange={event => setDays(event.target.value)} /></label><div className="admin-actions"><button className="primary" onClick={() => save(false, false)}>Выдать доступ</button><button className="secondary" onClick={() => save(false, true)}>Продлить</button><button className="secondary" onClick={() => save(true, false)}>Сделать бессрочной</button><button className="delete-btn" onClick={disable}>Отключить</button></div></div>}</section>;
 }

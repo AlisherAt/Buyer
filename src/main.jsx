@@ -72,6 +72,7 @@ function App() {
   return <div className={`app-shell ${menuOpen ? 'menu-open' : ''}`}>
     <div className="mobile-menu-backdrop" onClick={() => setMenuOpen(false)}></div>
     <aside className="sidebar">
+      <button className="mobile-menu-close" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)}>×</button>
       <div className="brand"><div className="brand-mark">BF</div><div><strong>УЧЁТ БАЙЕРА</strong><span>Локальная система</span></div></div>
       <nav>{[['overview', 'Обзор', '⌂'], ['purchases', 'Закупки', '↘'], ['sales', 'Продажи', '↗'], ['expenses', 'Расходы', '◌'], ['debts', 'Дебиторка', '◷'], ['warehouse', 'Склад', '▦'], ['taxes', 'Налоги', '₽'], ['reports', 'Отчёты', '▤']].map(([id, label, icon]) => (id !== 'warehouse' || store.settings.showWarehouse) && <button className={page === id ? 'nav-item active' : 'nav-item'} onClick={() => navigate(id)} key={id}><i>{icon}</i>{label}{id === 'debts' && metrics.debts > 0 && <b>{money(metrics.debts, store.settings.currency)}</b>}</button>)}</nav>
       <div className="sidebar-bottom"><button className="nav-item" onClick={() => navigate('settings')}><i>⚙</i>Настройки</button><div className="offline"><span></span><div><strong>Только локально</strong><small>Данные не покидают устройство</small></div></div></div>

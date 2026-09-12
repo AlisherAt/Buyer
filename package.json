@@ -17,6 +17,7 @@
     "@capacitor/cli": "^8.5.1",
     "@capacitor/core": "^8.5.1",
     "@supabase/supabase-js": "^2.116.0",
+    "@vercel/analytics": "^1.4.1",
     "react": "latest",
     "react-dom": "latest",
     "xlsx": "^0.18.5"

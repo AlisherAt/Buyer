@@ -100,6 +100,9 @@ create policy "Users can read own profile" on public.profiles for select using (
 drop policy if exists "Users can create own profile" on public.profiles;
 create policy "Users can create own profile" on public.profiles for insert with check (auth.uid() = user_id and role = 'user');
 
+drop policy if exists "Admins can insert profiles" on public.profiles;
+create policy "Admins can insert profiles" on public.profiles for insert with check (public.is_admin());
+
 drop policy if exists "Admins can update profiles" on public.profiles;
 create policy "Admins can update profiles" on public.profiles for update using (public.is_admin()) with check (public.is_admin());
 

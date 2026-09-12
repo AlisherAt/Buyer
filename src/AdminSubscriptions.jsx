@@ -120,7 +120,7 @@ export default function AdminSubscriptions({ notify }) {
     )
       return;
     setBusy(true);
-    const { error } = await supabase
+    const { error: subscriptionError } = await supabase
       .from("subscriptions")
       .upsert({
         user_id: selectedUser.user_id,
@@ -132,11 +132,30 @@ export default function AdminSubscriptions({ notify }) {
         is_permanent: false,
         updated_at: new Date().toISOString(),
       });
-    if (error) {
+    if (subscriptionError) {
       setBusy(false);
-      return notify(`Не удалось отключить доступ: ${error.message}`);
+      return notify(`Не удалось отключить доступ: ${subscriptionError.message}`);
     }
-    await writeAudit("revoke_access", selectedUser.user_id, {});
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          user_id: selectedUser.user_id,
+          email: selectedUser.email,
+          role: selectedUser.role || "user",
+          disabled_at: new Date().toISOString(),
+          disabled_reason: "admin-disabled",
+        },
+        { onConflict: "user_id" },
+      );
+
+    if (profileError) {
+      setBusy(false);
+      return notify(`Подписка отключена, но флаг блокировки не записался: ${profileError.message}`);
+    }
+
+    await writeAudit("revoke_access", selectedUser.user_id, { disabled: true });
     notify("Доступ отключён");
     await loadUsers();
     setBusy(false);
@@ -163,6 +182,7 @@ export default function AdminSubscriptions({ notify }) {
   const filteredProfiles = profiles
     .filter((item) => {
       const active =
+        !item.disabled_at &&
         subscriptions[item.user_id]?.status === "active" &&
         (subscriptions[item.user_id]?.is_permanent ||
           new Date(subscriptions[item.user_id]?.current_period_end) >
@@ -182,6 +202,7 @@ export default function AdminSubscriptions({ notify }) {
   const activeCount = profiles.filter((item) => {
     const itemSubscription = subscriptions[item.user_id];
     return (
+      !item.disabled_at &&
       itemSubscription?.status === "active" &&
       (itemSubscription.is_permanent ||
         new Date(itemSubscription.current_period_end) > new Date())

@@ -53,8 +53,13 @@ create table if not exists public.profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
   role text not null default 'user' check (role in ('user', 'admin')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  disabled_at timestamptz,
+  disabled_reason text
 );
+
+alter table public.profiles add column if not exists disabled_at timestamptz;
+alter table public.profiles add column if not exists disabled_reason text;
 
 alter table public.profiles enable row level security;
 
@@ -95,11 +100,14 @@ create policy "Users can read own profile" on public.profiles for select using (
 drop policy if exists "Users can create own profile" on public.profiles;
 create policy "Users can create own profile" on public.profiles for insert with check (auth.uid() = user_id and role = 'user');
 
+drop policy if exists "Admins can update profiles" on public.profiles;
+create policy "Admins can update profiles" on public.profiles for update using (public.is_admin()) with check (public.is_admin());
+
 drop policy if exists "Admins can read profiles" on public.profiles;
 create policy "Admins can read profiles" on public.profiles for select using (public.is_admin());
 
 create or replace function public.admin_list_users()
-returns table (user_id uuid, email text, role text, created_at timestamptz)
+returns table (user_id uuid, email text, role text, created_at timestamptz, disabled_at timestamptz, disabled_reason text)
 language plpgsql
 security definer
 set search_path = public, auth
@@ -110,7 +118,7 @@ begin
     raise exception 'Only administrators can list users';
   end if;
   return query
-    select u.id, u.email::text, coalesce(p.role, 'user')::text, u.created_at
+    select u.id, u.email::text, coalesce(p.role, 'user')::text, u.created_at, p.disabled_at, p.disabled_reason
     from auth.users u
     left join public.profiles p on p.user_id = u.id
     order by u.created_at desc;
@@ -204,6 +212,7 @@ as $$
     select 1 from public.profiles p
     left join public.subscriptions s on s.user_id = p.user_id
     where p.user_id = auth.uid()
+      and p.disabled_at is null
       and (s.status is distinct from 'inactive')
       and (p.created_at > now() - interval '2 hours'
         or (s.status = 'active' and (s.is_permanent or s.current_period_end > now())))

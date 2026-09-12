@@ -204,6 +204,20 @@ npx vite build --emptyOutDir false
 npm start
 ```
 
+## Деплой на Vercel
+
+1. Подключите репозиторий к Vercel.
+2. В настройках проекта укажите:
+   - Framework Preset: Vite
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+3. Добавьте переменные окружения:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+4. Нажмите Deploy.
+
+Переадресация SPA настроена в [vercel.json](vercel.json).
+
 ## Сборка установщика
 
 ```bash

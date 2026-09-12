@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as XLSX from 'xlsx';
+import { Analytics } from '@vercel/analytics/react';
 import { cloudEnabled, supabase } from './supabase';
 import AdminSubscriptions from './AdminSubscriptions';
 import { calcDeal, combinedTaxRate, dealMetrics } from './finance';
@@ -159,7 +160,7 @@ function LegalPage({ type, onBack }) {
 function SubscriptionScreen({ subscription, onSignOut }) {
   const expired = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString('ru-RU') : null;
   const whatsappUrl = 'https://wa.me/77006520335?text=' + encodeURIComponent('Здравствуйте! Хочу продлить подписку на Учёт байера.');
-  return <div className="auth-shell"><div className="auth-card subscription-card"><div className="auth-brand"><div className="brand-mark">BF</div><div><h1>Учёт байера</h1><p>Доступ к облачному учёту</p></div></div><h2>Пробный период завершён</h2><p>{expired ? `Доступ закончился ${expired}.` : 'Ваш бесплатный пробный период завершён.'} Данные аккаунта сохранены.</p><div className="subscription-offer"><strong>Продолжить работу</strong><span>15 000 ₸ / месяц</span><small>Напишите администратору в WhatsApp, чтобы согласовать подписку. После подтверждения доступ к вашим данным будет восстановлен.</small></div><a className="primary full whatsapp-button" href={whatsappUrl} target="_blank" rel="noreferrer">Написать в WhatsApp</a><button className="secondary full" onClick={onSignOut}>Выйти</button></div></div>;
+  return <div className="auth-shell"><div className="auth-card subscription-card"><div className="auth-brand"><div className="brand-mark">BF</div><div><h1>Учёт байера</h1><p>Доступ к облачному учёту</p></div></div><h2>Пробный период завершён</h2><p>{expired ? `Доступ закончился ${expired}.` : 'Ваш бесплатный пробный период завершён.'} Данные аккаунта сохранены.</p><div className="subscription-offer"><strong>Продолжить работу</strong><span>15 000 ₸ / месяц</span><small>Напишите администратору в WhatsApp, чтобы соглас��вать подписку. После подтверждения доступ к вашим данным будет восстановлен.</small></div><a className="primary full whatsapp-button" href={whatsappUrl} target="_blank" rel="noreferrer">Написать в WhatsApp</a><button className="secondary full" onClick={onSignOut}>Выйти</button></div></div>;
 }
 
 function App() {
@@ -353,6 +354,7 @@ function App() {
     {(modal === 'sale' || modal?.type === 'sale') && <DealModal value={modal?.value} onSave={modal?.value ? updateSale : addSale} onClose={() => setModal(null)} purchases={store.purchases.filter(p => p.status !== 'Продано' || p.id === modal?.value?.purchaseId)} settings={store.settings} liveRates={liveRates} refreshKaspiRate={refreshKaspiRate} />}
     {(modal === 'expense' || modal?.type === 'expense') && <ExpenseModal value={modal?.value} onSave={modal?.value ? updateExpense : addExpense} onClose={() => setModal(null)} currency={store.settings.currency} />}
     {toast && <div className="toast">✓ {toast}</div>}
+    <Analytics />
   </div>;
 }
 

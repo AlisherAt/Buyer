@@ -43,9 +43,9 @@ const cloudAPI = {
   getProfile: async () => {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError) throw userError;
-    let { data, error } = await supabase.from('profiles').select('user_id,email,role,created_at').eq('user_id', userData.user.id).maybeSingle();
+    let { data, error } = await supabase.from('profiles').select('user_id,email,role,created_at,disabled_at,disabled_reason').eq('user_id', userData.user.id).maybeSingle();
     if (!data && !error) {
-      const result = await supabase.from('profiles').insert({ user_id: userData.user.id, email: userData.user.email, role: 'user' }).select('user_id,email,role,created_at').single();
+      const result = await supabase.from('profiles').insert({ user_id: userData.user.id, email: userData.user.email, role: 'user' }).select('user_id,email,role,created_at,disabled_at,disabled_reason').single();
       data = result.data;
       error = result.error;
     }
@@ -169,11 +169,14 @@ function App() {
   const handleSignOut = async () => {
     if (!cloudEnabled || !supabase) return;
     setAuthLoading(true);
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: 'global' });
     setSession(null);
+    setProfile(null);
+    setSubscription(null);
     setPasswordRecovery(false);
     if (error) notify(error.message);
     setAuthLoading(false);
+    window.location.reload();
   };
   const [subscription, setSubscription] = useState(null);
   const [accountLoading, setAccountLoading] = useState(cloudEnabled);
@@ -330,9 +333,9 @@ function App() {
   const trialHours = Math.floor(trialRemaining / 3600000);
   const trialMinutes = Math.floor((trialRemaining % 3600000) / 60000);
   const trialSeconds = Math.floor((trialRemaining % 60000) / 1000);
-  const accessRevoked = subscription?.status === 'inactive';
+  const accessRevoked = subscription?.status === 'inactive' || Boolean(profile?.disabled_at);
   const hasAccess = profile?.role === 'admin' || (!accessRevoked && (inTrial || (subscription?.status === 'active' && (subscription.is_permanent || (subscription.current_period_end && new Date(subscription.current_period_end) > new Date())))));
-  if (cloudEnabled && !hasAccess) return <SubscriptionScreen subscription={subscription} onSignOut={() => supabase.auth.signOut()} />;
+  if (cloudEnabled && !hasAccess) return <SubscriptionScreen subscription={subscription} onSignOut={handleSignOut} />;
   return <div className={`app-shell ${menuOpen ? 'menu-open' : ''}`}>
     <div className="mobile-menu-backdrop" onClick={() => setMenuOpen(false)}></div>
     <aside className="sidebar">
